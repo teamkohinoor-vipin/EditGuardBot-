@@ -40,9 +40,9 @@ I am **Edit Guard Bot**, here to protect your groups from message editing misuse
 Enjoy safe group management! 😊  
 """
 
-# --------------------- START COMMAND ---------------------
+# --------------------- START COMMANDS ---------------------
 @app.on_message(filters.command("start") & filters.private)
-async def start_command(client: Client, message: Message):
+async def start_private(client: Client, message: Message):
     user = message.from_user
     new_user = add_user(user.id, user.first_name, user.last_name, user.username)
 
@@ -63,6 +63,15 @@ async def start_command(client: Client, message: Message):
         mention = f"[{user.first_name}](tg://user?id={user.id})"
         text = f"📢 New User Started Bot\n👤 Name: {mention}\n🆔 ID: `{user.id}`\n📊 Total Users: {get_total_users()}"
         await client.send_message(OWNER_ID, text)
+
+@app.on_message(filters.command("start") & filters.group)
+async def start_group(client: Client, message: Message):
+    """Group start handler – gives a simple info message."""
+    await message.reply(
+        "👋 I'm already active in this group!\n\n"
+        "Use /help to see available commands.\n"
+        "Admins: use /approve or /auth to allow specific users to edit messages."
+    )
 
 # --------------------- CALLBACK HANDLER ---------------------
 @app.on_callback_query()
