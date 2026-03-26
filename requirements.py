@@ -1,0 +1,3 @@
+pyrogram==2.0.106
+python-dotenv==1.0.0
+aiohttp==3.9.0
