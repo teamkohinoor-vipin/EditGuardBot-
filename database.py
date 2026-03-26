@@ -35,6 +35,11 @@ def get_total_users():
     data = load_data()
     return len(data["users"])
 
+def get_all_users():
+    """Return list of all user IDs who started the bot."""
+    data = load_data()
+    return data.get("users", [])
+
 # ---------- Group ----------
 def add_group(group_id, title, username, chat_type):
     data = load_data()
