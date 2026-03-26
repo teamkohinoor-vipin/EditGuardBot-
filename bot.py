@@ -1,5 +1,5 @@
-import asyncio
 import os
+import asyncio
 from datetime import datetime
 from pyrogram import Client, filters, enums
 from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
@@ -8,7 +8,8 @@ from config import API_ID, API_HASH, BOT_TOKEN, OWNER_ID, SUPPORT_CHAT, DEVELOPE
 from database import (
     add_user, add_group, remove_group, get_group_settings, set_silent_mode,
     set_custom_warning, is_authorized, add_authorized_user, remove_authorized_user,
-    get_authorized_users, get_total_users, get_total_groups, get_all_groups
+    get_authorized_users, get_total_users, get_total_groups, get_all_groups,
+    get_all_users
 )
 
 # --------------------- BOT INIT ---------------------
@@ -19,30 +20,31 @@ app = Client(
     bot_token=BOT_TOKEN
 )
 
+# Store original start message caption and keyboard for back button
+START_CAPTION = f"""**👋 Welcome!**  
+
+I am **Edit Guard Bot**, here to protect your groups from message editing misuse.
+
+🔹 **Features:**    
+✅ Auto-delete edited messages from unauthorized users    
+✅ Grant/revoke edit permission with `/approve`    
+✅ Silent mode – disable warnings    
+✅ Custom warning messages    
+✅ Admin controls & user status check    
+✅ Analytics for bot owner    
+
+📌 **Get Started:**    
+- Add me to your group with admin rights.    
+- Use `/help` to see all commands.    
+
+Enjoy safe group management! 😊  
+"""
+
 # --------------------- START COMMAND ---------------------
 @app.on_message(filters.command("start") & filters.private)
 async def start_command(client: Client, message: Message):
     user = message.from_user
     new_user = add_user(user.id, user.first_name, user.last_name, user.username)
-
-    caption = f"""**👋 Welcome, {user.first_name}!**  
-
-I am **Edit Guard Bot**, here to protect your groups from message editing misuse.
-
-🔹 **Features:**  
-✅ Auto-delete edited messages from unauthorized users  
-✅ Grant/revoke edit permission with `/approve`  
-✅ Silent mode – disable warnings  
-✅ Custom warning messages  
-✅ Admin controls & user status check  
-✅ Analytics for bot owner  
-
-📌 **Get Started:**  
-- Add me to your group with admin rights.  
-- Use `/help` to see all commands.  
-
-Enjoy safe group management! 😊
-"""
 
     keyboard = InlineKeyboardMarkup([
         [InlineKeyboardButton("🆘 Help", callback_data="help")],
@@ -53,7 +55,7 @@ Enjoy safe group management! 😊
 
     await message.reply_photo(
         photo=START_PHOTO,
-        caption=caption,
+        caption=START_CAPTION,
         reply_markup=keyboard
     )
 
@@ -66,53 +68,77 @@ Enjoy safe group management! 😊
 @app.on_callback_query()
 async def handle_callback(client: Client, callback_query: CallbackQuery):
     if callback_query.data == "help":
-        help_text = f"""**🤖 Bot Commands List**
+        help_text = f"""**🤖 Bot Commands List**  
 
-**👤 User Commands:**
-/start - Start bot  
-/help - Show help  
-/mystatus - Check your edit permission status
+**👤 User Commands:**  
+/start - Start bot    
+/help - Show help    
+/mystatus - Check your edit permission status  
 
-**👮 Admin Commands (Group Admins only):**
-/approve or /auth - Allow a user to edit messages (reply or user ID)  
-/unapprove or /unauth - Revoke edit permission  
-/authusers - List authorized users  
-/setwarn - Set a custom warning message  
-/silent on/off - Toggle silent mode  
-/settings - View group settings
+**👮 Admin Commands (Group Admins only):**  
+/approve or /auth - Allow a user to edit messages (reply or user ID)    
+/unapprove or /unauth - Revoke edit permission    
+/authusers - List authorized users    
+/setwarn - Set a custom warning message    
+/silent on/off - Toggle silent mode    
+/settings - View group settings  
 
-**👑 Owner Commands:**
-/stats - Bot stats  
-/groups - List all groups the bot is in
+**👑 Owner Commands:**  
+/stats - Bot stats    
+/groups - List all groups the bot is in  
+/broadcast - Send message to all users (owner only)  
 
-**Need help?** Join our support chat: [Click here]({SUPPORT_CHAT})  
+**Need help?** Join our support chat: [Click here]({SUPPORT_CHAT})    
 Developer: [Click here]({DEVELOPER})"""
+
+        back_button = InlineKeyboardMarkup([
+            [InlineKeyboardButton("🔙 Back to Menu", callback_data="back")]
+        ])
+
+        await callback_query.message.edit_caption(
+            caption=help_text,
+            reply_markup=back_button
+        )
         await callback_query.answer()
-        await callback_query.message.reply(help_text, disable_web_page_preview=True)
+
+    elif callback_query.data == "back":
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("🆘 Help", callback_data="help")],
+            [InlineKeyboardButton("➕ Add to Group", url=f"https://t.me/{client.me.username}?startgroup=true")],
+            [InlineKeyboardButton("👨‍💻 Developer", url=DEVELOPER),
+             InlineKeyboardButton("💬 Support Chat", url=SUPPORT_CHAT)]
+        ])
+
+        await callback_query.message.edit_caption(
+            caption=START_CAPTION,
+            reply_markup=keyboard
+        )
+        await callback_query.answer()
 
 # --------------------- /help COMMAND ---------------------
 @app.on_message(filters.command("help"))
 async def help_command(client: Client, message: Message):
-    help_text = f"""**🤖 Bot Commands List**
+    help_text = f"""**🤖 Bot Commands List**  
 
-**👤 User Commands:**
-/start - Start bot  
-/help - Show help  
-/mystatus - Check your edit permission status
+**👤 User Commands:**  
+/start - Start bot    
+/help - Show help    
+/mystatus - Check your edit permission status  
 
-**👮 Admin Commands (Group Admins only):**
-/approve or /auth - Allow a user to edit messages (reply or user ID)  
-/unapprove or /unauth - Revoke edit permission  
-/authusers - List authorized users  
-/setwarn - Set a custom warning message  
-/silent on/off - Toggle silent mode  
-/settings - View group settings
+**👮 Admin Commands (Group Admins only):**  
+/approve or /auth - Allow a user to edit messages (reply or user ID)    
+/unapprove or /unauth - Revoke edit permission    
+/authusers - List authorized users    
+/setwarn - Set a custom warning message    
+/silent on/off - Toggle silent mode    
+/settings - View group settings  
 
-**👑 Owner Commands:**
-/stats - Bot stats  
-/groups - List all groups the bot is in
+**👑 Owner Commands:**  
+/stats - Bot stats    
+/groups - List all groups the bot is in  
+/broadcast - Send message to all users (owner only)  
 
-**Need help?** Join our support chat: [Click here]({SUPPORT_CHAT})  
+**Need help?** Join our support chat: [Click here]({SUPPORT_CHAT})    
 Developer: [Click here]({DEVELOPER})"""
     await message.reply(help_text, disable_web_page_preview=True)
 
@@ -257,10 +283,10 @@ async def settings_command(client: Client, message: Message):
     custom_warning = "Yes" if settings["custom_warning"] else "No"
     auth_count = len(get_authorized_users(message.chat.id))
 
-    text = f"""⚙️ Group Settings
+    text = f"""⚙️ Group Settings  
 
-🔇 Silent Mode: {silent_mode}
-✏️ Custom Warning: {custom_warning}
+🔇 Silent Mode: {silent_mode}  
+✏️ Custom Warning: {custom_warning}  
 👥 Authorized Users: {auth_count}"""
     await message.reply(text)
 
@@ -305,6 +331,45 @@ async def groups_command(client: Client, message: Message):
 
         text += f"{idx}. {title}\n   {link}\n\n"
     await message.reply(text)
+
+# --------------------- BROADCAST (owner only) ---------------------
+@app.on_message(filters.command("broadcast") & filters.private)
+async def broadcast_command(client: Client, message: Message):
+    if message.from_user.id != OWNER_ID:
+        await message.reply("❌ This command is only for the bot owner.")
+        return
+
+    # Get the message to broadcast: either reply to a message or use text after command
+    broadcast_msg = message.reply_to_message or message
+    if not broadcast_msg.text and not broadcast_msg.photo and not broadcast_msg.video and not broadcast_msg.document:
+        await message.reply("❌ Reply to a message (text, photo, video, document) to broadcast.")
+        return
+
+    users = get_all_users()
+    if not users:
+        await message.reply("📋 No users in database.")
+        return
+
+    status_msg = await message.reply(f"📢 Broadcasting to {len(users)} users...")
+    success = 0
+    failed = 0
+
+    for user_id in users:
+        try:
+            if broadcast_msg.text:
+                await client.send_message(user_id, broadcast_msg.text)
+            elif broadcast_msg.photo:
+                await client.send_photo(user_id, broadcast_msg.photo.file_id, caption=broadcast_msg.caption)
+            elif broadcast_msg.video:
+                await client.send_video(user_id, broadcast_msg.video.file_id, caption=broadcast_msg.caption)
+            elif broadcast_msg.document:
+                await client.send_document(user_id, broadcast_msg.document.file_id, caption=broadcast_msg.caption)
+            success += 1
+        except Exception:
+            failed += 1
+        await asyncio.sleep(0.05)  # avoid flood wait
+
+    await status_msg.edit_text(f"📢 Broadcast completed.\n✅ Sent: {success}\n❌ Failed: {failed}")
 
 # --------------------- ANTI-EDIT HANDLER ---------------------
 @app.on_edited_message()
