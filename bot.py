@@ -339,12 +339,55 @@ async def broadcast_command(client: Client, message: Message):
         await message.reply("❌ This command is only for the bot owner.")
         return
 
-    # Get the message to broadcast: either reply to a message or use text after command
-    broadcast_msg = message.reply_to_message or message
-    if not broadcast_msg.text and not broadcast_msg.photo and not broadcast_msg.video and not broadcast_msg.document:
-        await message.reply("❌ Reply to a message (text, photo, video, document) to broadcast.")
+    # Determine broadcast content
+    broadcast_text = None
+    broadcast_media = None
+    broadcast_caption = None
+
+    # Case 1: Reply to a message
+    if message.reply_to_message:
+        broadcast_media = message.reply_to_message
+        if broadcast_media.text:
+            broadcast_text = broadcast_media.text
+        elif broadcast_media.caption:
+            broadcast_caption = broadcast_media.caption
+        # For media without caption, we'll add header as caption later
+    else:
+        # Case 2: Text after command
+        args = message.text.split(maxsplit=1)
+        if len(args) > 1:
+            broadcast_text = args[1]
+        else:
+            await message.reply("❌ Usage: /broadcast <message> or reply to a message.")
+            return
+
+    # Prepare the message with announcement header
+    header = "📢 **Announcement by EditGuard Bot**\n\n"
+    if broadcast_text:
+        # Text message
+        final_content = header + broadcast_text
+    elif broadcast_media:
+        # Media message
+        if broadcast_media.photo:
+            media_type = "photo"
+            file_id = broadcast_media.photo.file_id
+            final_caption = header + (broadcast_caption if broadcast_caption else "")
+        elif broadcast_media.video:
+            media_type = "video"
+            file_id = broadcast_media.video.file_id
+            final_caption = header + (broadcast_caption if broadcast_caption else "")
+        elif broadcast_media.document:
+            media_type = "document"
+            file_id = broadcast_media.document.file_id
+            final_caption = header + (broadcast_caption if broadcast_caption else "")
+        else:
+            await message.reply("❌ Unsupported media type.")
+            return
+    else:
+        await message.reply("❌ No valid content to broadcast.")
         return
 
+    # Get all users
     users = get_all_users()
     if not users:
         await message.reply("📋 No users in database.")
@@ -356,14 +399,15 @@ async def broadcast_command(client: Client, message: Message):
 
     for user_id in users:
         try:
-            if broadcast_msg.text:
-                await client.send_message(user_id, broadcast_msg.text)
-            elif broadcast_msg.photo:
-                await client.send_photo(user_id, broadcast_msg.photo.file_id, caption=broadcast_msg.caption)
-            elif broadcast_msg.video:
-                await client.send_video(user_id, broadcast_msg.video.file_id, caption=broadcast_msg.caption)
-            elif broadcast_msg.document:
-                await client.send_document(user_id, broadcast_msg.document.file_id, caption=broadcast_msg.caption)
+            if broadcast_text:
+                await client.send_message(user_id, final_content)
+            elif broadcast_media:
+                if media_type == "photo":
+                    await client.send_photo(user_id, file_id, caption=final_caption)
+                elif media_type == "video":
+                    await client.send_video(user_id, file_id, caption=final_caption)
+                elif media_type == "document":
+                    await client.send_document(user_id, file_id, caption=final_caption)
             success += 1
         except Exception:
             failed += 1
