@@ -194,16 +194,19 @@ async def authusers_command(client: Client, message: Message):
         await message.reply("❌ Only group admins can use this command.")
         return
 
-    users = get_authorized_users(message.chat.id)
-    if not users:
+    user_ids = get_authorized_users(message.chat.id)
+    if not user_ids:
         await message.reply("📋 No authorized users in this group.")
         return
 
     text = "📋 Authorized Users:\n\n"
-    for user_id, first_name, last_name, username in users:
-        name = first_name or "Unknown"
-        mention = f"[{name}](tg://user?id={user_id})"
-        text += f"• {mention}\n"
+    for user_id in user_ids:
+        try:
+            user = await client.get_users(user_id)
+            mention = f"[{user.first_name}](tg://user?id={user_id})"
+            text += f"• {mention}\n"
+        except Exception:
+            text += f"• User {user_id} (not found)\n"
     await message.reply(text)
 
 # --------------------- /setwarn ---------------------
@@ -287,11 +290,9 @@ async def groups_command(client: Client, message: Message):
 
     text = "📋 Groups List:\n\n"
     for idx, (group_id, title, username) in enumerate(groups, 1):
-        # Generate link
         if username:
             link = f"https://t.me/{username}"
         else:
-            # Try to create invite link if private
             try:
                 chat = await client.get_chat(group_id)
                 if chat.permissions and chat.permissions.can_invite_users:
@@ -308,38 +309,32 @@ async def groups_command(client: Client, message: Message):
 # --------------------- ANTI-EDIT HANDLER ---------------------
 @app.on_edited_message()
 async def handle_edit(client: Client, message: Message):
-    # Only process groups/supergroups
     if message.chat.type not in [ChatType.GROUP, ChatType.SUPERGROUP]:
         return
 
     user = message.from_user
-    if not user:  # Deleted account?
+    if not user:
         return
 
-    # Admin bypass: admins can edit freely
     try:
         member = await message.chat.get_member(user.id)
         if member.status in [ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.OWNER]:
             return
     except Exception:
-        pass  # User might have left
+        pass
 
     group_id = message.chat.id
     settings = get_group_settings(group_id)
 
-    # Check if user is authorized
     if is_authorized(group_id, user.id):
         return
 
-    # Delete the edited message
     try:
         await message.delete()
     except Exception:
         pass
 
-    # Send warning if silent mode is off
     if not settings["silent_mode"]:
-        # Prepare warning message
         if settings["custom_warning"]:
             warning_text = settings["custom_warning"]
         else:
@@ -347,9 +342,7 @@ async def handle_edit(client: Client, message: Message):
             warning_text = f'❌ {mention}\nEdit message allowed nahi hai!'
 
         warning_msg = await message.reply(warning_text)
-
-        # Auto-delete after 5-10 seconds
-        await asyncio.sleep(7)  # 7 seconds for example
+        await asyncio.sleep(7)
         try:
             await warning_msg.delete()
         except Exception:
@@ -358,17 +351,13 @@ async def handle_edit(client: Client, message: Message):
 # --------------------- GROUP JOIN/LEAVE HANDLERS ---------------------
 @app.on_chat_member_updated()
 async def chat_member_update(client: Client, update):
-    # Check if bot itself is added/removed
     if update.new_chat_member and update.new_chat_member.user.id == client.me.id:
-        # Bot added
         chat = update.chat
         add_group(chat.id, chat.title, chat.username, str(chat.type))
-        # Notify owner
         text = f"➕ Bot added to group: {chat.title} (ID: {chat.id})"
         await client.send_message(OWNER_ID, text)
 
     elif update.old_chat_member and update.old_chat_member.user.id == client.me.id:
-        # Bot removed
         chat_id = update.chat.id
         remove_group(chat_id)
         text = f"➖ Bot removed from group: {update.chat.title} (ID: {chat_id})"
